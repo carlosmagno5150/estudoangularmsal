@@ -1,0 +1,20 @@
+<p>login works!</p>
+
+<table>
+  <tr><td>Config:tenantId</td><td>{{config?.tenantId}}</td></tr>
+  <tr><td>Config:clientId</td><td>{{config?.clientId}}</td></tr>
+</table>
+
+<br/>
+
+<button (click)="login()">Login with Microsoft Account</button>
+
+@if(this.data?.account) {
+  <table>
+    <tr><th>Name</th><td>{{this.data?.account?.name}}</td></tr>
+    <tr><th>UserName</th><td>{{this.data?.account?.username}}</td></tr>
+  </table>
+  <b>Token:</b><br/>
+  <textarea style="width:600px; height: 200px">{{this.data?.token}}</textarea>
+  <br/>
+}
