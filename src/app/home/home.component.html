@@ -1,1 +1,34 @@
 <p>home works!</p>
+
+<h1>Home</h1>
+
+user: {{this.userInfo?.email}}<br/>
+token:  {{this.data.token}}
+<br />
+{{this.userInfo?.clientId}}
+<br />
+{{this.data.account?.username}}
+
+<br />
+<br />
+<br />
+<br />
+<button (click)="vai()"> Acessar endpoint protegido </button>
+<br />
+<br />
+<br />
+<br />
+<table *ngIf="this.resposta.length > 0" style="border:1px solid black;">
+  <tr>
+    <th>Date</th><th>Summary</th>
+    <th>ºC</th>
+    <th>ºF</th>
+  </tr>
+  <tr *ngFor="let item of resposta">
+    <td>{{item.date}}</td>
+    <td>{{item.summary}}</td>
+    <td class="right">{{item.temperatureC}}</td>
+    <td class="right">{{item.temperatureF}}</td>
+  </tr>
+</table>
+
