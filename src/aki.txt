@@ -1,0 +1,61 @@
+namespace authApi;
+
+using System;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.IdentityModel.Tokens.Jwt;
+using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
+using Newtonsoft.Json;
+using System.Collections.Generic;
+
+public class JwtValidator
+{
+    private const string TenantId = "53070112-66b2-4215-b912-b55fd9d86706";
+    private const string Audience = "api://8949d550-d3a8-42c3-9e95-a95f04bdab1e";
+        //"8949d550-d3a8-42c3-9e95-a95f04bdab1e";
+    private static readonly string Issuer = $"https://sts.windows.net/{TenantId}/";//  $"https://login.microsoftonline.com/{TenantId}/v2.0";
+    private static readonly string JwksUri = $"https://login.microsoftonline.com/{TenantId}/discovery/v2.0/keys";
+
+    private static async Task<IssuerSigningKeys> GetSigningKeysAsync()
+    {
+        using var httpClient = new HttpClient();
+        var json = await httpClient.GetStringAsync(JwksUri);
+        var keys = JsonConvert.DeserializeObject<JsonWebKeySet>(json);
+        return new IssuerSigningKeys { Keys = keys.Keys };
+    }
+
+    public static async Task<ClaimsPrincipal> ValidateTokenAsync(string token)
+    {
+        var keys = await GetSigningKeysAsync();
+
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var validationParameters = new TokenValidationParameters
+        {
+            ValidIssuer = Issuer,
+            ValidAudiences = new[] { Audience },
+            IssuerSigningKeys = keys.Keys,
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateIssuerSigningKey = true,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(5)
+        };
+
+        try
+        {
+            var principal = tokenHandler.ValidateToken(token, validationParameters, out var validatedToken);
+            return principal;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Token validation failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    private class IssuerSigningKeys
+    {
+        public IEnumerable<SecurityKey> Keys { get; set; }
+    }
+}
