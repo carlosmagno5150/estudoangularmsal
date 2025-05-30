@@ -1,0 +1,251 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+
+namespace authApi;
+
+public record JwtConfig
+{
+    public JwtConfig(string tenantId, string clientId, string audience, string[] scopes)
+    {
+        TenantId = tenantId;
+        ClientId = clientId;
+        Audience = audience;
+        Scopes = scopes;
+    }
+    
+    public string TenantId { get; set; }
+    public string ClientId { get; set; }
+    public string Audience { get; set; } = "api://8949d550-d3a8-42c3-9e95-a95f04bdab1e";
+    public string[] Scopes { get; set; }
+    public string Issuer => $"https://sts.windows.net/{TenantId}/";
+    public string Authority => $"https://login.microsoftonline.com/{TenantId}";
+}
+
+public static class JwtConfigExtension
+{
+    public static void ConfigureJwt(this JwtBearerOptions options, JwtConfig config)
+    {
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = async context =>
+            {
+                context.Options.Authority = config.Authority;
+                context.Options.Audience = config.Audience;
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidIssuer = config.Issuer,
+                    ValidAudiences = new[] { config.Audience },
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.FromMinutes(5)
+                };
+            },
+
+            // OnTokenValidated = async context =>
+            // {
+            //     // Do custom logic here, like checking user claims against a database
+            // }
+        };
+        
+        options.Authority = "https://login.microsoftonline.com/common/v2.0";
+        // options.TokenValidationParameters = new TokenValidationParameters()
+        // {
+        //     ValidateIssuer = true,
+        // };
+
+    }
+}
+
+
+
+--------------------------------
+
+using authApi;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Identity.Web;
+using Microsoft.Identity.Web.Resource;
+using Microsoft.IdentityModel.Tokens;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.ConfigureJwt(new JwtConfig(
+            "53070112-66b2-4215-b912-b55fd9d86706",
+            "8949d550-d3a8-42c3-9e95-a95f04bdab1e",
+            "api://8949d550-d3a8-42c3-9e95-a95f04bdab1e",
+            ["API.Read"]));
+    });
+
+        //{
+        //     options.Events = new JwtBearerEvents
+        //     {
+        //         OnMessageReceived = async context =>
+        //         {
+        //             var tenantId = RequestExtensions.GetTenantIdFromRequest(context.Request);
+        //             var clientId = RequestExtensions.GetClientIdFromRequest(context.Request);
+        //
+        //             var issuer = $"https://sts.windows.net/{tenantId}/";
+        //             var audience = "api://8949d550-d3a8-42c3-9e95-a95f04bdab1e";
+        //             
+        //             context.Options.Authority = $"https://login.microsoftonline.com/{tenantId}";
+        //             context.Options.Audience = "api://8949d550-d3a8-42c3-9e95-a95f04bdab1e";
+        //             options.TokenValidationParameters = new TokenValidationParameters
+        //             {
+        //                 ValidIssuer = issuer,
+        //                 ValidAudiences = new[] { audience },
+        //                 ValidateIssuer = true,
+        //                 ValidateAudience = true,
+        //                 ValidateIssuerSigningKey = true,
+        //                 ValidateLifetime = true,
+        //                 ClockSkew = TimeSpan.FromMinutes(5)
+        //             };
+        //         },
+        //
+        //         OnTokenValidated = async context =>
+        //         {
+        //             // Do custom logic here, like checking user claims against a database
+        //         }
+        //     };
+        //
+        //     // This must be valid initially — will be overridden at runtime
+        //     options.Authority = "https://login.microsoftonline.com/common/v2.0";
+        //     options.TokenValidationParameters = new TokenValidationParameters()
+        //     {
+        //         ValidateIssuer = true,
+        //         // Optionally override other parameters dynamically here
+        //     };
+        // });
+
+builder.Services.AddAuthorization();
+
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(builder =>
+    {
+        builder.AllowAnyOrigin();
+        builder.AllowAnyHeader();
+        builder.AllowAnyMethod();
+    });
+});
+
+builder.Services.Configure<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme, options =>
+{
+    options.Events.OnRedirectToLogin = context =>
+    {
+        context.Response.Redirect(context.RedirectUri); // This will go to Azure login
+        return Task.CompletedTask;
+    };
+});
+builder.Services.AddControllersWithViews(); 
+
+builder.Services.AddOpenApi();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
+
+app.UseCors();
+//app.UseHttpsRedirection();
+
+// var scopeRequiredByApi = app.Configuration["AzureAd:Scopes"] ?? "";
+
+
+var summaries = new[]
+{
+    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
+};
+
+app.MapGet("/check", ([FromQuery] string email, HttpContext context) =>
+{
+    if (email != "cmagno@gmail.com")
+    {
+        return Results.Forbid();   
+    }
+    // return Results.Redirect(
+    //     "https://login.microsoftonline.com/53070112-66b2-4215-b912-b55fd9d86706/oauth2/v2.0/authorize?client_id=8949d550-d3a8-42c3-9e95-a95f04bdab1e&scope=openid%20profile%20offline_access&redirect_uri=http%3A%2F%2Flocalhost%3A4200%2Flogin");
+    
+    return Results.Ok(new
+    {
+        loginUrl =
+            "https://login.microsoftonline.com/53070112-66b2-4215-b912-b55fd9d86706/oauth2/v2.0/authorize?client_id=8949d550-d3a8-42c3-9e95-a95f04bdab1e&scope=openid%20profile%20offline_access&redirect_uri=http%3A%2F%2Flocalhost%3A4200%2Flogin",
+        tenantId = "53070112-66b2-4215-b912-b55fd9d86706",
+        clientId = "8949d550-d3a8-42c3-9e95-a95f04bdab1e"
+    });
+    
+});
+
+
+app.MapGet("/jwt", async (HttpContext context) =>
+{
+    var token = context.Request.Headers["Authorization"].ToString();
+
+    if (token.StartsWith("Bearer "))
+    {
+        token = token.Substring("Bearer ".Length).Trim();
+    }
+
+    var teste = await JwtValidator.ValidateTokenAsync(token);
+
+});
+
+app.MapGet("/weatherforecast", (HttpContext httpContext) =>
+    {
+        //httpContext.VerifyUserHasAnyAcceptedScope(scopeRequiredByApi);
+
+        var teste = httpContext.User.GetDisplayName();
+
+        var forecast = Enumerable.Range(1, 5).Select(index =>
+                new WeatherForecast
+                (
+                    DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
+                    Random.Shared.Next(-20, 55),
+                    summaries[Random.Shared.Next(summaries.Length)]
+                ))
+            .ToArray();
+        return forecast;
+    })
+    .WithName("GetWeatherForecast")
+    .WithOpenApi()
+    .RequireAuthorization();//x => x.RequireScope("API.Read"));
+
+app.Run();
+
+record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+{
+    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+}
+
+public static class RequestExtensions
+{
+    public static string GetTenantIdFromRequest(HttpRequest request)
+    {
+        // Example: from header
+        if (request.Headers.TryGetValue("X-Tenant-ID", out var tenantHeader))
+            return tenantHeader.FirstOrDefault();
+
+        // Or extract from domain, path, token, etc.
+        return "common";
+    }
+    
+    public static string GetClientIdFromRequest(HttpRequest request)
+    {
+        // Example: from header
+        if (request.Headers.TryGetValue("X-Client-ID", out var clientHeader))
+            return clientHeader.FirstOrDefault();
+
+        // Or extract from domain, path, token, etc.
+        return "common";
+    }
+}
+
+
